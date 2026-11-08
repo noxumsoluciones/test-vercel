@@ -1,0 +1,52 @@
+# CI/CD por rama con dos cuentas de Vercel.
+#   main    -> producción en la cuenta A
+#   develop -> producción en la cuenta B
+#   PR      -> preview en la cuenta A
+#
+# Secrets requeridos en GitHub (Settings > Secrets and variables > Actions):
+#   VERCEL_TOKEN_A, VERCEL_ORG_ID_A, VERCEL_PROJECT_ID_A
+#   VERCEL_TOKEN_B, VERCEL_ORG_ID_B, VERCEL_PROJECT_ID_B
+name: Deploy Vercel
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      CUENTA: ${{ (github.ref_name == 'develop' && github.event_name == 'push') && 'B' || 'A' }}
+      MODO: ${{ github.event_name == 'push' && 'production' || 'preview' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install -g vercel@latest
+
+      - name: Seleccionar credenciales de la cuenta
+        run: |
+          if [ "$CUENTA" = "B" ]; then
+            echo "VERCEL_TOKEN=${{ secrets.VERCEL_TOKEN_B }}" >> $GITHUB_ENV
+            echo "VERCEL_ORG_ID=${{ secrets.VERCEL_ORG_ID_B }}" >> $GITHUB_ENV
+            echo "VERCEL_PROJECT_ID=${{ secrets.VERCEL_PROJECT_ID_B }}" >> $GITHUB_ENV
+          else
+            echo "VERCEL_TOKEN=${{ secrets.VERCEL_TOKEN_A }}" >> $GITHUB_ENV
+            echo "VERCEL_ORG_ID=${{ secrets.VERCEL_ORG_ID_A }}" >> $GITHUB_ENV
+            echo "VERCEL_PROJECT_ID=${{ secrets.VERCEL_PROJECT_ID_A }}" >> $GITHUB_ENV
+          fi
+          echo "Desplegando en cuenta $CUENTA como $MODO"
+
+      - name: Pull config
+        run: vercel pull --yes --environment=$MODO --token=$VERCEL_TOKEN
+      - name: Build
+        run: |
+          if [ "$MODO" = "production" ]; then vercel build --prod --token=$VERCEL_TOKEN; else vercel build --token=$VERCEL_TOKEN; fi
+      - name: Deploy
+        run: |
+          FLAG=""; [ "$MODO" = "production" ] && FLAG="--prod"
+          URL=$(vercel deploy --prebuilt $FLAG --token=$VERCEL_TOKEN)
+          echo "### Cuenta $CUENTA ($MODO): $URL" >> $GITHUB_STEP_SUMMARY

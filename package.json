@@ -1,0 +1,15 @@
+{
+  "name": "test-vercel",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Prueba de despliegue en Vercel con dos cuentas y CI/CD por rama",
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "dev": "node server.js",
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
